@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firestore Admin — Nations of Sky</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Quill Rich Text Editor -->
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+  <style>
+    * { font-family: 'Cairo', 'Noto Sans Arabic', sans-serif; }
+    
+    body { 
+      background: linear-gradient(135deg, #f8fafc 0%, #ffffff 50%, #f1f5f9 100%);
+      min-height: 100vh;
+    }
+
+    .drag-over { 
+      border-color: #f97316 !important; 
+      background-color: #fff7ed !important;
+      transform: scale(1.02);
+      box-shadow: 0 10px 25px rgba(249, 115, 22, 0.15);
+    }
+
+    .dragging { opacity: 0.5; transform: scale(0.98); }
+
+    .doc-card { transition: all 0.2s ease; cursor: default; }
+    .doc-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: #e2e8f0; }
+    .doc-card:hover .actions { opacity: 1 !important; }
+    .actions { opacity: 0; transition: opacity 0.2s ease; }
+
+    .grip { cursor: grab; }
+    .grip:active { cursor: grabbing; }
+
+    .toast {
+      animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
+    }
+    @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+    .skeleton {
+      animation: pulse 1.5s ease-in-out infinite;
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+    }
+    @keyframes pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* ── Quill Editor Styles ── */
+    .ql-toolbar.ql-snow {
+      border-radius: 10px 10px 0 0 !important;
+      border-color: #e2e8f0 !important;
+      background: #f8fafc !important;
+      padding: 8px !important;
+    }
+
+    .ql-container.ql-snow {
+      border-radius: 0 0 10px 10px !important;
+      border-color: #e2e8f0 !important;
+      font-family: 'Cairo', 'Noto Sans Arabic', sans-serif !important;
+      font-size: 14px !important;
+      min-height: 150px;
+      direction: auto;
+    }
+
+    .ql-editor {
+      min-height: 150px;
+      line-height: 1.8;
+      font-size: 14px;
+    }
+
+    .ql-editor.ql-blank::before {
+      font-style: normal !important;
+      color: #94a3b8;
+    }
+
+    /* Quill toolbar buttons styling */
+    .ql-snow .ql-stroke { stroke: #64748b !important; }
+    .ql-snow .ql-fill { fill: #64748b !important; }
+    .ql-snow .ql-picker-label { color: #64748b !important; }
+    .ql-snow button:hover .ql-stroke { stroke: #f97316 !important; }
+    .ql-snow button:hover .ql-fill { fill: #f97316 !important; }
+    .ql-snow button.ql-active .ql-stroke { stroke: #f97316 !important; }
+    .ql-snow button.ql-active .ql-fill { fill: #f97316 !important; }
+    .ql-snow .ql-picker-label.ql-active { color: #f97316 !important; }
+
+    /* Content display */
+    .content-display {
+      line-height: 1.8;
+      font-size: 14px;
+    }
+    .content-display p { margin-bottom: 0.5em; }
+    .content-display ul, .content-display ol { padding-right: 1.5em; margin-bottom: 0.5em; }
+    .content-display img { max-width: 100%; border-radius: 8px; margin: 0.5em 0; }
+
+    /* Edit mode wrapper */
+    .edit-quill-wrapper {
+      border: 2px solid #f97316;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+    }
+
+    /* Add dialog Quill */
+    .add-quill-wrapper {
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .add-quill-wrapper:focus-within {
+      border-color: #f97316;
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[999] flex flex-col gap-2"></div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 border-b bg-white/80 backdrop-blur-lg">
+    <div class="max-w-5xl mx-auto px-4 py-4">
+      <div class="flex items-center justify-between gap-4 flex-wrap">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-gray-900">ادارة مستندات Firebase</h1>
+            <p class="text-xs text-gray-500">Nations of Sky — رتّب وعدّل المستندات</p>
+          </div>
+        </div>
+        <div id="status-badge" class="hidden text-xs font-medium px-3 py-1.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+          ✓ متصل
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Collection Input -->
+    <div class="bg-white rounded-xl border shadow-sm p-4">
+      <div class="flex gap-3">
+        <div class="relative flex-1">
+          <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+          <input id="collection-input" type="text" placeholder="اكتب اسم الكولكشن (مثال: KnowledgeBase)" value="KnowledgeBase" dir="ltr"
+            class="w-full pr-10 pl-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500">
+        </div>
+        <button onclick="loadDocuments()" class="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg font-medium text-sm hover:from-orange-600 hover:to-amber-600 transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          تحميل
+        </button>
+      </div>
+      <p class="text-xs text-gray-400 mt-2">
+        💡 للكولكشنات الفرعية اكتب: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">KnowledgeBase/1-The-Company</code>
+      </p>
+    </div>
+
+    <!-- Error Message -->
+    <div id="error-msg" class="hidden bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+      <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+      <div>
+        <p class="text-sm font-medium text-red-700">خطأ في التحميل</p>
+        <p id="error-text" class="text-xs text-red-600 mt-1"></p>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div id="toolbar" class="hidden">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="relative flex-1 min-w-[200px] max-w-sm">
+          <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input id="search-input" type="text" placeholder="بحث في المستندات..." oninput="filterDocuments()"
+            class="w-full pr-10 pl-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500">
+        </div>
+        <button onclick="toggleOrder()" class="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 flex items-center gap-1.5">
+          <svg id="order-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+          <span id="order-text">تصاعدي</span>
+        </button>
+        <div class="flex gap-2 mr-auto">
+          <button onclick="showJsonDialog()" class="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 flex items-center gap-1.5">JSON</button>
+          <button onclick="showAddDialog()" class="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 flex items-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            اضافة
+          </button>
+        </div>
+      </div>
+      <p id="doc-count" class="text-xs text-gray-400 mt-2"></p>
+    </div>
+
+    <!-- Documents List -->
+    <div id="doc-list" class="space-y-2"></div>
+
+    <!-- Loading State -->
+    <div id="loading" class="hidden space-y-3">
+      <div class="skeleton h-24 w-full rounded-xl"></div>
+      <div class="skeleton h-24 w-full rounded-xl"></div>
+      <div class="skeleton h-24 w-full rounded-xl"></div>
+      <div class="skeleton h-24 w-full rounded-xl"></div>
+      <p class="text-center text-sm text-gray-400 mt-2">جاري تحميل المستندات...</p>
+    </div>
+
+    <!-- Welcome State -->
+    <div id="welcome" class="bg-white border border-dashed rounded-xl p-12 text-center">
+      <div class="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-100 to-amber-100 mx-auto mb-6">
+        <svg class="w-10 h-10 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+      </div>
+      <h2 class="text-xl font-bold mb-2">ادارة مستندات Firestore</h2>
+      <p class="text-gray-500 max-w-md mx-auto mb-8">اكتب اسم الكولكشن واضغط تحميل عشان تبدأ ترتّب وتعدّل المستندات بسهولة.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto">
+        <div class="flex flex-col items-center gap-2 p-4 rounded-lg bg-gray-50">
+          <span class="text-2xl">🔀</span>
+          <span class="text-sm font-semibold">سحب وافلات</span>
+          <span class="text-xs text-gray-400 text-center">رتّب المستندات بالسحب</span>
+        </div>
+        <div class="flex flex-col items-center gap-2 p-4 rounded-lg bg-gray-50">
+          <span class="text-2xl">🎨</span>
+          <span class="text-sm font-semibold">محرر نصوص كامل</span>
+          <span class="text-xs text-gray-400 text-center">ألوان وخطوط وتنسيق</span>
+        </div>
+        <div class="flex flex-col items-center gap-2 p-4 rounded-lg bg-gray-50">
+          <span class="text-2xl">🔢</span>
+          <span class="text-sm font-semibold">ترتيب تلقائي</span>
+          <span class="text-xs text-gray-400 text-center">الأرقام تتحدث لوحدها</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div id="tips" class="hidden bg-white/60 border rounded-xl p-4">
+      <div class="flex items-start gap-3">
+        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600 flex-shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div>
+          <p class="text-sm font-semibold">نصائح سريعة</p>
+          <ul class="text-xs text-gray-500 space-y-1 mt-1">
+            <li>• <strong>سحب وافلات</strong> — امسك ⠿ واسحب عشان ترتّب</li>
+            <li>• <strong>تعديل بالألوان</strong> — اضغط ✏️ وهتحصل على محرر نصوص كامل (Bold, Italic, Underline, لون, حجم خط, قوائم, رابط...)</li>
+            <li>• <strong>نسخ</strong> — اضغط 📋 عشان تنسخ محتوى مستند</li>
+            <li>• <strong>حذف</strong> — اضغط 🗑️ عشان تحذف مستند</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Add Document Dialog -->
+  <div id="add-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 p-6 max-h-[90vh] overflow-y-auto" dir="rtl">
+      <h3 class="text-lg font-bold mb-4">اضافة مستند جديد</h3>
+      <div class="space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1">رقم الترتيب</label>
+            <input id="add-number" type="number" placeholder="مثال: 16" dir="ltr" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30">
+          </div>
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1">اسم المستند (ID)</label>
+            <input id="add-name" type="text" placeholder="16-New-Topic" dir="ltr" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30">
+          </div>
+        </div>
+        <div>
+          <label class="text-sm font-medium text-gray-700 block mb-2">المحتوى — استخدم محرر النصوص بالأسفل 🎨</label>
+          <div id="add-quill-editor"></div>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-6 justify-end">
+        <button onclick="hideAddDialog()" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">الغاء</button>
+        <button onclick="addDocument()" class="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          اضافة
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JSON Dialog -->
+  <div id="json-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] flex flex-col" dir="ltr">
+      <h3 class="text-lg font-bold mb-4">Raw JSON View</h3>
+      <pre id="json-content" class="bg-gray-50 rounded-lg p-4 text-xs font-mono overflow-auto flex-1 whitespace-pre-wrap break-all"></pre>
+      <div class="flex justify-end mt-4">
+        <button onclick="hideJsonDialog()" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <script>
+    // ── Firebase Config ──
+    firebase.initializeApp({
+      apiKey: "AIzaSyB_SM6Igr-oP2kgGpyXG5K03uaL69n9qCs",
+      authDomain: "nations-of-sky.firebaseapp.com",
+      projectId: "nations-of-sky",
+      storageBucket: "nations-of-sky.firebasestorage.app",
+      messagingSenderId: "727141914368",
+      appId: "1:727141914368:web:ba5c9e1bed1810fb99c5e5",
+      measurementId: "G-90R5KH51L0"
+    });
+    const db = firebase.firestore();
+
+    // ── State ──
+    let allDocs = [];
+    let filteredDocs = [];
+    let orderDir = 'asc';
+    let editingId = null;
+    let draggedId = null;
+    let editQuill = null;
+    let addQuill = null;
+
+    // ── Quill Toolbar Config (Rich Text) ──
+    const quillToolbarOptions = [
+      [{ 'header': [1, 2, 3, 4, false] }],             // Headers
+      [{ 'size': ['small', false, 'large', 'huge'] }],   // Font sizes
+      ['bold', 'italic', 'underline', 'strike'],          // Text formatting
+      [{ 'color': [] }, { 'background': [] }],           // Text & background color
+      [{ 'font': [] }],                                   // Font family
+      [{ 'align': [] }],                                  // Text alignment
+      [{ 'direction': 'rtl' }],                           // RTL support
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],      // Lists
+      [{ 'indent': '-1'}, { 'indent': '+1' }],           // Indentation
+      ['blockquote', 'code-block'],                       // Blockquote & code
+      ['link', 'image'],                                  // Links & images
+      ['clean']                                           // Remove formatting
+    ];
+
+    // ── Toast ──
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600' };
+      const toast = document.createElement('div');
+      toast.className = `toast ${colors[type]} text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function extractNum(id) {
+      const match = id.match(/^(\d+)/);
+      return match ? parseInt(match[1], 10) : 0;
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // ── Load Documents ──
+    async function loadDocuments() {
+      const colName = document.getElementById('collection-input').value.trim();
+      if (!colName) return showToast('اكتب اسم الكولكشن اولاً', 'error');
+
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('welcome').classList.add('hidden');
+      document.getElementById('error-msg').classList.add('hidden');
+      document.getElementById('toolbar').classList.add('hidden');
+      document.getElementById('doc-list').innerHTML = '';
+      document.getElementById('tips').classList.add('hidden');
+
+      try {
+        const snapshot = await db.collection(colName).get();
+        allDocs = snapshot.docs.map(doc => ({
+          id: doc.id,
+          number: doc.data().number ?? extractNum(doc.id),
+          ...doc.data()
+        }));
+
+        sortDocs();
+        renderDocs();
+
+        document.getElementById('status-badge').classList.remove('hidden');
+        document.getElementById('toolbar').classList.remove('hidden');
+        document.getElementById('tips').classList.remove('hidden');
+        showToast(`تم تحميل ${allDocs.length} مستند ✅`);
+      } catch (error) {
+        console.error(error);
+        document.getElementById('error-msg').classList.remove('hidden');
+        document.getElementById('error-text').textContent = error.message || 'فشل في الاتصال';
+        showToast('فشل في التحميل ❌', 'error');
+      } finally {
+        document.getElementById('loading').classList.add('hidden');
+      }
+    }
+
+    function sortDocs() {
+      allDocs.sort((a, b) => {
+        const numA = a.number ?? extractNum(a.id);
+        const numB = b.number ?? extractNum(b.id);
+        return orderDir === 'asc' ? numA - numB : numB - numA;
+      });
+    }
+
+    function filterDocuments() {
+      const q = document.getElementById('search-input').value.toLowerCase();
+      filteredDocs = q ? allDocs.filter(d => JSON.stringify(d).toLowerCase().includes(q)) : [...allDocs];
+      renderDocList(filteredDocs);
+    }
+
+    function toggleOrder() {
+      orderDir = orderDir === 'asc' ? 'desc' : 'asc';
+      document.getElementById('order-text').textContent = orderDir === 'asc' ? 'تصاعدي' : 'تنازلي';
+      document.getElementById('order-icon').style.transform = orderDir === 'asc' ? '' : 'rotate(180deg)';
+      sortDocs();
+      filterDocuments();
+    }
+
+    function renderDocs() {
+      filteredDocs = [...allDocs];
+      renderDocList(filteredDocs);
+    }
+
+    // ── Detect if content is HTML ──
+    function isHtmlContent(str) {
+      return /<[a-z][\s\S]*>/i.test(str);
+    }
+
+    // ── Strip HTML for preview ──
+    function stripHtml(html) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      return tmp.textContent || tmp.innerText || '';
+    }
+
+    // ── Render ──
+    function renderDocList(docs) {
+      const list = document.getElementById('doc-list');
+      document.getElementById('doc-count').textContent = `عرض ${docs.length} من ${allDocs.length} مستند`;
+
+      if (docs.length === 0) {
+        list.innerHTML = '<div class="bg-white border border-dashed rounded-xl p-12 text-center"><p class="text-gray-500">لا يوجد مستندات</p></div>';
+        return;
+      }
+
+      list.innerHTML = docs.map(doc => {
+        const num = doc.number ?? extractNum(doc.id);
+        const isEditing = editingId === doc.id;
+        const fields = Object.keys(doc).filter(k => k !== 'id' && k !== 'number');
+        const contentHtml = doc.content || '';
+        const isHtml = isHtmlContent(contentHtml);
+        const previewText = isHtml ? stripHtml(contentHtml) : contentHtml;
+        const truncatedPreview = escapeHtml(previewText).substring(0, 200) + (previewText.length > 200 ? '...' : '');
+
+        if (isEditing) {
+          return `
+            <div class="doc-card bg-white border-2 border-orange-300 rounded-xl p-5 shadow-lg" id="doc-${doc.id}" data-id="${doc.id}">
+              <div class="flex items-start gap-3">
+                <div class="flex-shrink-0 mt-1">
+                  <span class="inline-flex items-center justify-center min-w-[3rem] px-2.5 py-1 rounded-lg bg-orange-100 text-orange-700 text-sm font-mono font-bold">${num}</span>
+                </div>
+                <div class="flex-1 space-y-3">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-block text-xs font-semibold bg-gray-100 px-2 py-0.5 rounded">${escapeHtml(doc.id)}</span>
+                    <span class="text-xs text-orange-500 font-medium">✏️ وضع التعديل</span>
+                  </div>
+                  ${fields.filter(f => f !== 'content').map(f => `
+                    <div>
+                      <label class="text-xs font-medium text-gray-500 block mb-1">${escapeHtml(f)}</label>
+                      <input id="edit-${f}-${doc.id}" type="text" value="${escapeHtml(String(doc[f] ?? ''))}" class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30">
+                    </div>
+                  `).join('')}
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 block mb-2">content — محرر النصوص 🎨</label>
+                    <div class="edit-quill-wrapper">
+                      <div id="edit-quill-${doc.id}"></div>
+                    </div>
+                  </div>
+                  <div class="flex gap-2 pt-2">
+                    <button onclick="saveEdit('${doc.id}')" class="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 flex items-center gap-1.5 font-medium">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                      احفظ التعديلات
+                    </button>
+                    <button onclick="cancelEdit()" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">الغاء</button>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+        }
+
+        // Display mode
+        const contentDisplay = isHtml
+          ? `<div class="content-display text-sm text-gray-700 mt-1" dir="auto">${contentHtml}</div>`
+          : (previewText ? `<p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed mt-1" dir="auto">${truncatedPreview}</p>` : '');
+
+        return `
+          <div class="doc-card bg-white border rounded-xl p-4" 
+               id="doc-${doc.id}" data-id="${doc.id}"
+               draggable="true"
+               ondragstart="onDragStart(event)" 
+               ondragover="onDragOver(event)" 
+               ondrop="onDrop(event)" 
+               ondragend="onDragEnd(event)">
+            <div class="flex items-start gap-3">
+              <button class="grip flex-shrink-0 mt-2 p-1 text-gray-300 hover:text-gray-600 rounded hover:bg-gray-100" title="اسحب للتغيير">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>
+              </button>
+              <div class="flex-shrink-0 mt-0.5">
+                <span class="inline-flex items-center justify-center min-w-[3rem] px-2.5 py-1 rounded-lg bg-gray-100 text-sm font-mono font-semibold">${num}</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <span class="inline-block text-xs font-semibold bg-gray-100 px-2 py-0.5 rounded mb-1">${escapeHtml(doc.id)}</span>
+                ${contentDisplay}
+              </div>
+              <div class="actions flex-shrink-0 flex gap-1">
+                <button onclick="startEdit('${doc.id}')" class="p-1.5 text-gray-400 hover:text-orange-600 rounded hover:bg-orange-50" title="تعديل">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button onclick="copyContent('${doc.id}')" class="p-1.5 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100" title="نسخ">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                </button>
+                <button onclick="deleteDoc('${doc.id}')" class="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50" title="حذف">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+
+      // Initialize Quill for editing
+      if (editingId) {
+        initEditQuill(editingId);
+      }
+    }
+
+    // ── Initialize Edit Quill ──
+    function initEditQuill(id) {
+      const doc = allDocs.find(d => d.id === id);
+      if (!doc) return;
+
+      const container = document.getElementById(`edit-quill-${id}`);
+      if (!container) return;
+
+      // Destroy existing
+      if (editQuill) {
+        editQuill = null;
+      }
+
+      // Create new Quill
+      editQuill = new Quill(container, {
+        modules: {
+          toolbar: quillToolbarOptions
+        },
+        theme: 'snow',
+        placeholder: 'اكتب المحتوى هنا... استخدم الأدوات بالأعلى للتنسيق 🎨'
+      });
+
+      // Load content (HTML or plain text)
+      const content = String(doc.content ?? '');
+      if (isHtmlContent(content)) {
+        editQuill.root.innerHTML = content;
+      } else {
+        editQuill.setText(content);
+        editQuill.format('direction', 'rtl');
+      }
+    }
+
+    // ── Drag & Drop ──
+    function onDragStart(e) {
+      if (editingId) return; // Don't drag while editing
+      draggedId = e.currentTarget.dataset.id;
+      e.currentTarget.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+    function onDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (e.currentTarget.dataset.id !== draggedId) e.currentTarget.classList.add('drag-over');
+    }
+    function onDrop(e) {
+      e.preventDefault();
+      const targetId = e.currentTarget.dataset.id;
+      e.currentTarget.classList.remove('drag-over');
+      if (draggedId === targetId) return;
+
+      const oldIndex = allDocs.findIndex(d => d.id === draggedId);
+      const newIndex = allDocs.findIndex(d => d.id === targetId);
+      const [moved] = allDocs.splice(oldIndex, 1);
+      allDocs.splice(newIndex, 0, moved);
+      allDocs.forEach((doc, i) => { doc.number = i + 1; });
+
+      renderDocs();
+      saveReorder();
+    }
+    function onDragEnd(e) {
+      e.currentTarget.classList.remove('dragging');
+      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      draggedId = null;
+    }
+
+    // ── Save Reorder ──
+    async function saveReorder() {
+      try {
+        const colName = document.getElementById('collection-input').value.trim();
+        const batch = db.batch();
+        allDocs.forEach(doc => {
+          batch.update(db.collection(colName).doc(doc.id), { number: doc.number });
+        });
+        await batch.commit();
+        showToast('تم ترتيب المستندات ✅');
+      } catch (error) {
+        console.error(error);
+        showToast('فشل في الترتيب ❌', 'error');
+        loadDocuments();
+      }
+    }
+
+    // ── Edit ──
+    function startEdit(id) {
+      editingId = id;
+      renderDocs();
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      editQuill = null;
+      renderDocs();
+    }
+
+    async function saveEdit(id) {
+      try {
+        const doc = allDocs.find(d => d.id === id);
+        if (!doc) return;
+        
+        const colName = document.getElementById('collection-input').value.trim();
+        const ref = db.collection(colName).doc(id);
+        const data = {};
+
+        // Get non-content fields
+        Object.keys(doc).forEach(key => {
+          if (key === 'id' || key === 'content') return;
+          const input = document.getElementById(`edit-${key}-${id}`);
+          if (input) {
+            if (key === 'number') {
+              const num = parseInt(input.value, 10);
+              if (!isNaN(num)) data[key] = num;
+            } else {
+              data[key] = input.value;
+            }
+          }
+        });
+
+        // Get HTML content from Quill
+        if (editQuill) {
+          data.content = editQuill.root.innerHTML;
+        }
+
+        await ref.update(data);
+        editingId = null;
+        editQuill = null;
+        showToast('تم التحديث بنجاح ✅');
+        loadDocuments();
+      } catch (error) {
+        console.error(error);
+        showToast('فشل في التحديث ❌', 'error');
+      }
+    }
+
+    // ── Delete ──
+    async function deleteDoc(id) {
+      if (!confirm('هل تريد حذف هذا المستند؟')) return;
+      try {
+        const colName = document.getElementById('collection-input').value.trim();
+        await db.collection(colName).doc(id).delete();
+        showToast('تم الحذف ✅');
+        loadDocuments();
+      } catch (error) {
+        console.error(error);
+        showToast('فشل في الحذف ❌', 'error');
+      }
+    }
+
+    // ── Copy ──
+    function copyContent(id) {
+      const doc = allDocs.find(d => d.id === id);
+      if (doc && doc.content) {
+        const text = isHtmlContent(doc.content) ? stripHtml(doc.content) : String(doc.content);
+        navigator.clipboard.writeText(text);
+        showToast('تم نسخ المحتوى! 📋');
+      }
+    }
+
+    // ── Add Document Dialog ──
+    function showAddDialog() {
+      document.getElementById('add-dialog').classList.remove('hidden');
+      const maxNum = allDocs.reduce((max, d) => Math.max(max, d.number ?? extractNum(d.id)), 0);
+      document.getElementById('add-number').value = maxNum + 1;
+
+      // Init add Quill
+      setTimeout(() => {
+        if (addQuill) {
+          addQuill.setText('');
+        } else {
+          addQuill = new Quill('#add-quill-editor', {
+            modules: { toolbar: quillToolbarOptions },
+            theme: 'snow',
+            placeholder: 'اكتب المحتوى هنا... استخدم الأدوات بالأعلى للتنسيق 🎨'
+          });
+        }
+        addQuill.setText('');
+      }, 100);
+    }
+
+    function hideAddDialog() {
+      document.getElementById('add-dialog').classList.add('hidden');
+      document.getElementById('add-name').value = '';
+      if (addQuill) addQuill.setText('');
+    }
+
+    async function addDocument() {
+      const num = parseInt(document.getElementById('add-number').value, 10);
+      const name = document.getElementById('add-name').value.trim() || `${num}-untitled`;
+      const content = addQuill ? addQuill.root.innerHTML : '';
+
+      if (!name) { showToast('اكتب اسم المستند', 'error'); return; }
+
+      try {
+        const colName = document.getElementById('collection-input').value.trim();
+        await db.collection(colName).doc(name).set({ content, number: num || (allDocs.length + 1) });
+        hideAddDialog();
+        showToast('تم الاضافة ✅');
+        loadDocuments();
+      } catch (error) {
+        console.error(error);
+        showToast('فشل في الاضافة ❌', 'error');
+      }
+    }
+
+    // ── JSON Dialog ──
+    function showJsonDialog() {
+      document.getElementById('json-content').textContent = JSON.stringify(allDocs, null, 2);
+      document.getElementById('json-dialog').classList.remove('hidden');
+    }
+    function hideJsonDialog() {
+      document.getElementById('json-dialog').classList.add('hidden');
+    }
+
+    // ── Close dialogs ──
+    document.getElementById('add-dialog').addEventListener('click', function(e) { if (e.target === this) hideAddDialog(); });
+    document.getElementById('json-dialog').addEventListener('click', function(e) { if (e.target === this) hideJsonDialog(); });
+    document.getElementById('collection-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadDocuments(); });
+  </script>
+</body>
+</html>
