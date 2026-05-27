@@ -119,6 +119,17 @@
       border-color: #f97316;
       box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
     }
+
+    /* Filter panel animation */
+    #filter-panel {
+      transition: all 0.2s ease;
+    }
+
+    /* Active chip */
+    .filter-chip {
+      animation: chipIn 0.15s ease;
+    }
+    @keyframes chipIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   </style>
 </head>
 <body>
@@ -175,18 +186,36 @@
       </div>
     </div>
 
-    <!-- Toolbar -->
-    <div id="toolbar" class="hidden">
+    <!-- ══════════════════════════════════════════
+         Toolbar — MODIFIED (search fix + filter)
+    ══════════════════════════════════════════ -->
+    <div id="toolbar" class="hidden space-y-3">
       <div class="flex flex-wrap items-center gap-3">
+
+        <!-- Search Input -->
         <div class="relative flex-1 min-w-[200px] max-w-sm">
           <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           <input id="search-input" type="text" placeholder="بحث في المستندات..." oninput="filterDocuments()"
-            class="w-full pr-10 pl-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500">
+            class="w-full pr-10 pl-8 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500">
+          <!-- Clear X button -->
+          <button id="clear-search" onclick="clearSearch()" class="hidden absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
         </div>
+
+        <!-- Filter Toggle Button -->
+        <button onclick="toggleFilterPanel()" id="filter-btn" class="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
+          فلتر
+          <span id="filter-count" class="hidden items-center justify-center bg-orange-500 text-white text-xs rounded-full w-4 h-4 font-bold">0</span>
+        </button>
+
+        <!-- Order Toggle -->
         <button onclick="toggleOrder()" class="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 flex items-center gap-1.5">
-          <svg id="order-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+          <svg id="order-icon" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
           <span id="order-text">تصاعدي</span>
         </button>
+
         <div class="flex gap-2 mr-auto">
           <button onclick="showJsonDialog()" class="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 flex items-center gap-1.5">JSON</button>
           <button onclick="showAddDialog()" class="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 flex items-center gap-1.5">
@@ -195,8 +224,48 @@
           </button>
         </div>
       </div>
-      <p id="doc-count" class="text-xs text-gray-400 mt-2"></p>
+
+      <!-- Advanced Filter Panel -->
+      <div id="filter-panel" class="hidden bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+        <p class="text-xs font-semibold text-gray-600">🔍 فلترة متقدمة</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <!-- Field selector -->
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">ابحث في حقل</label>
+            <select id="filter-field" onchange="filterDocuments()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500">
+              <option value="all">كل الحقول</option>
+              <option value="id">Document ID</option>
+              <option value="content">المحتوى فقط</option>
+              <option value="number">الرقم فقط</option>
+            </select>
+          </div>
+          <!-- Number from -->
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">من رقم</label>
+            <input id="filter-num-from" type="number" min="0" placeholder="مثال: 1" oninput="filterDocuments()"
+              class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500" dir="ltr">
+          </div>
+          <!-- Number to -->
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">إلى رقم</label>
+            <input id="filter-num-to" type="number" min="0" placeholder="مثال: 20" oninput="filterDocuments()"
+              class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500" dir="ltr">
+          </div>
+        </div>
+        <div class="flex justify-end pt-1">
+          <button onclick="resetFilters()" class="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            مسح كل الفلاتر
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Filter Chips -->
+      <div id="active-chips" class="hidden flex-wrap gap-2"></div>
+
+      <p id="doc-count" class="text-xs text-gray-400 mt-1"></p>
     </div>
+    <!-- ══ End Toolbar ══ -->
 
     <!-- Documents List -->
     <div id="doc-list" class="space-y-2"></div>
@@ -249,6 +318,7 @@
             <li>• <strong>تعديل بالألوان</strong> — اضغط ✏️ وهتحصل على محرر نصوص كامل (Bold, Italic, Underline, لون, حجم خط, قوائم, رابط...)</li>
             <li>• <strong>نسخ</strong> — اضغط 📋 عشان تنسخ محتوى مستند</li>
             <li>• <strong>حذف</strong> — اضغط 🗑️ عشان تحذف مستند</li>
+            <li>• <strong>فلتر متقدم</strong> — اضغط "فلتر" عشان تفلتر بالرقم أو بحقل معين</li>
           </ul>
         </div>
       </div>
@@ -324,18 +394,18 @@
 
     // ── Quill Toolbar Config (Rich Text) ──
     const quillToolbarOptions = [
-      [{ 'header': [1, 2, 3, 4, false] }],             // Headers
-      [{ 'size': ['small', false, 'large', 'huge'] }],   // Font sizes
-      ['bold', 'italic', 'underline', 'strike'],          // Text formatting
-      [{ 'color': [] }, { 'background': [] }],           // Text & background color
-      [{ 'font': [] }],                                   // Font family
-      [{ 'align': [] }],                                  // Text alignment
-      [{ 'direction': 'rtl' }],                           // RTL support
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }],      // Lists
-      [{ 'indent': '-1'}, { 'indent': '+1' }],           // Indentation
-      ['blockquote', 'code-block'],                       // Blockquote & code
-      ['link', 'image'],                                  // Links & images
-      ['clean']                                           // Remove formatting
+      [{ 'header': [1, 2, 3, 4, false] }],
+      [{ 'size': ['small', false, 'large', 'huge'] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'font': [] }],
+      [{ 'align': [] }],
+      [{ 'direction': 'rtl' }],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'indent': '-1'}, { 'indent': '+1' }],
+      ['blockquote', 'code-block'],
+      ['link', 'image'],
+      ['clean']
     ];
 
     // ── Toast ──
@@ -405,11 +475,141 @@
       });
     }
 
+    // ══════════════════════════════════════════════
+    // MODIFIED filterDocuments — search fix + filter
+    // ══════════════════════════════════════════════
     function filterDocuments() {
-      const q = document.getElementById('search-input').value.toLowerCase();
-      filteredDocs = q ? allDocs.filter(d => JSON.stringify(d).toLowerCase().includes(q)) : [...allDocs];
+      const q = document.getElementById('search-input').value.toLowerCase().trim();
+      const field = document.getElementById('filter-field')?.value || 'all';
+      const numFromVal = document.getElementById('filter-num-from')?.value;
+      const numToVal   = document.getElementById('filter-num-to')?.value;
+      const numFrom = numFromVal !== '' ? parseInt(numFromVal, 10) : NaN;
+      const numTo   = numToVal   !== '' ? parseInt(numToVal, 10)   : NaN;
+
+      // Show / hide the X clear button inside search box
+      const clearBtn = document.getElementById('clear-search');
+      if (clearBtn) clearBtn.classList.toggle('hidden', !q);
+
+      filteredDocs = allDocs.filter(d => {
+        const num = d.number ?? extractNum(d.id);
+
+        // ── Number range filter ──
+        if (!isNaN(numFrom) && num < numFrom) return false;
+        if (!isNaN(numTo)   && num > numTo)   return false;
+
+        // ── Text search ──
+        if (q) {
+          const contentRaw = String(d.content ?? '');
+          const contentText = isHtmlContent(contentRaw) ? stripHtml(contentRaw) : contentRaw;
+
+          if (field === 'id')      return d.id.toLowerCase().includes(q);
+          if (field === 'content') return contentText.toLowerCase().includes(q);
+          if (field === 'number')  return String(num).includes(q);
+
+          // all fields
+          return d.id.toLowerCase().includes(q)
+              || String(num).includes(q)
+              || contentText.toLowerCase().includes(q);
+        }
+
+        return true;
+      });
+
+      updateFilterChips(q, field, numFrom, numTo);
+      updateFilterCount(q, numFrom, numTo);
       renderDocList(filteredDocs);
+
+      // ← الحل الأساسي: scroll للقائمة بعد الفلترة
+      const docList = document.getElementById('doc-list');
+      if (docList) {
+        docList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
+
+    // ── Update chips ──
+    function updateFilterChips(q, field, numFrom, numTo) {
+      const container = document.getElementById('active-chips');
+      container.innerHTML = '';
+      const chips = [];
+
+      if (q) {
+        const fieldLabel = { all: 'كل الحقول', id: 'Document ID', content: 'المحتوى', number: 'الرقم' }[field] || field;
+        chips.push({ label: `بحث: "${q}" في ${fieldLabel}`, key: 'search' });
+      }
+      if (!isNaN(numFrom)) chips.push({ label: `من رقم: ${numFrom}`, key: 'from' });
+      if (!isNaN(numTo))   chips.push({ label: `إلى رقم: ${numTo}`,  key: 'to'   });
+
+      if (chips.length === 0) {
+        container.classList.remove('flex');
+        container.classList.add('hidden');
+        return;
+      }
+
+      container.classList.remove('hidden');
+      container.classList.add('flex');
+      container.innerHTML = chips.map(chip => `
+        <span class="filter-chip inline-flex items-center gap-1 px-2.5 py-1 bg-orange-100 text-orange-700 text-xs rounded-full font-medium">
+          ${escapeHtml(chip.label)}
+          <button onclick="removeChip('${chip.key}')" class="hover:text-orange-900 font-bold text-sm leading-none">×</button>
+        </span>
+      `).join('');
+    }
+
+    // ── Update filter count badge ──
+    function updateFilterCount(q, numFrom, numTo) {
+      let count = 0;
+      if (q) count++;
+      if (!isNaN(numFrom)) count++;
+      if (!isNaN(numTo))   count++;
+
+      const badge = document.getElementById('filter-count');
+      const btn   = document.getElementById('filter-btn');
+      if (!badge || !btn) return;
+
+      badge.textContent = count;
+      if (count > 0) {
+        badge.classList.remove('hidden');
+        badge.classList.add('inline-flex');
+        btn.classList.add('border-orange-400', 'text-orange-600', 'bg-orange-50');
+      } else {
+        badge.classList.add('hidden');
+        badge.classList.remove('inline-flex');
+        btn.classList.remove('border-orange-400', 'text-orange-600', 'bg-orange-50');
+      }
+    }
+
+    // ── Remove individual chip ──
+    function removeChip(key) {
+      if (key === 'search') document.getElementById('search-input').value = '';
+      if (key === 'from')   document.getElementById('filter-num-from').value = '';
+      if (key === 'to')     document.getElementById('filter-num-to').value = '';
+      filterDocuments();
+    }
+
+    // ── Clear search box ──
+    function clearSearch() {
+      document.getElementById('search-input').value = '';
+      filterDocuments();
+    }
+
+    // ── Reset all filters ──
+    function resetFilters() {
+      document.getElementById('search-input').value = '';
+      const ff = document.getElementById('filter-field');
+      const fn = document.getElementById('filter-num-from');
+      const ft = document.getElementById('filter-num-to');
+      if (ff) ff.value = 'all';
+      if (fn) fn.value = '';
+      if (ft) ft.value = '';
+      filterDocuments();
+    }
+
+    // ── Toggle filter panel ──
+    function toggleFilterPanel() {
+      const panel = document.getElementById('filter-panel');
+      panel.classList.toggle('hidden');
+    }
+    // ══ End filter section ══
 
     function toggleOrder() {
       orderDir = orderDir === 'asc' ? 'desc' : 'asc';
@@ -442,7 +642,7 @@
       document.getElementById('doc-count').textContent = `عرض ${docs.length} من ${allDocs.length} مستند`;
 
       if (docs.length === 0) {
-        list.innerHTML = '<div class="bg-white border border-dashed rounded-xl p-12 text-center"><p class="text-gray-500">لا يوجد مستندات</p></div>';
+        list.innerHTML = '<div class="bg-white border border-dashed rounded-xl p-12 text-center"><p class="text-gray-500">لا يوجد مستندات تطابق البحث</p></div>';
         return;
       }
 
@@ -497,12 +697,12 @@
           : (previewText ? `<p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed mt-1" dir="auto">${truncatedPreview}</p>` : '');
 
         return `
-          <div class="doc-card bg-white border rounded-xl p-4" 
+          <div class="doc-card bg-white border rounded-xl p-4"
                id="doc-${doc.id}" data-id="${doc.id}"
                draggable="true"
-               ondragstart="onDragStart(event)" 
-               ondragover="onDragOver(event)" 
-               ondrop="onDrop(event)" 
+               ondragstart="onDragStart(event)"
+               ondragover="onDragOver(event)"
+               ondrop="onDrop(event)"
                ondragend="onDragEnd(event)">
             <div class="flex items-start gap-3">
               <button class="grip flex-shrink-0 mt-2 p-1 text-gray-300 hover:text-gray-600 rounded hover:bg-gray-100" title="اسحب للتغيير">
@@ -544,21 +744,16 @@
       const container = document.getElementById(`edit-quill-${id}`);
       if (!container) return;
 
-      // Destroy existing
       if (editQuill) {
         editQuill = null;
       }
 
-      // Create new Quill
       editQuill = new Quill(container, {
-        modules: {
-          toolbar: quillToolbarOptions
-        },
+        modules: { toolbar: quillToolbarOptions },
         theme: 'snow',
         placeholder: 'اكتب المحتوى هنا... استخدم الأدوات بالأعلى للتنسيق 🎨'
       });
 
-      // Load content (HTML or plain text)
       const content = String(doc.content ?? '');
       if (isHtmlContent(content)) {
         editQuill.root.innerHTML = content;
@@ -570,7 +765,7 @@
 
     // ── Drag & Drop ──
     function onDragStart(e) {
-      if (editingId) return; // Don't drag while editing
+      if (editingId) return;
       draggedId = e.currentTarget.dataset.id;
       e.currentTarget.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
@@ -634,12 +829,11 @@
       try {
         const doc = allDocs.find(d => d.id === id);
         if (!doc) return;
-        
+
         const colName = document.getElementById('collection-input').value.trim();
         const ref = db.collection(colName).doc(id);
         const data = {};
 
-        // Get non-content fields
         Object.keys(doc).forEach(key => {
           if (key === 'id' || key === 'content') return;
           const input = document.getElementById(`edit-${key}-${id}`);
@@ -653,7 +847,6 @@
           }
         });
 
-        // Get HTML content from Quill
         if (editQuill) {
           data.content = editQuill.root.innerHTML;
         }
@@ -699,7 +892,6 @@
       const maxNum = allDocs.reduce((max, d) => Math.max(max, d.number ?? extractNum(d.id)), 0);
       document.getElementById('add-number').value = maxNum + 1;
 
-      // Init add Quill
       setTimeout(() => {
         if (addQuill) {
           addQuill.setText('');
@@ -748,7 +940,7 @@
       document.getElementById('json-dialog').classList.add('hidden');
     }
 
-    // ── Close dialogs ──
+    // ── Close dialogs on backdrop click ──
     document.getElementById('add-dialog').addEventListener('click', function(e) { if (e.target === this) hideAddDialog(); });
     document.getElementById('json-dialog').addEventListener('click', function(e) { if (e.target === this) hideJsonDialog(); });
     document.getElementById('collection-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadDocuments(); });
