@@ -388,6 +388,7 @@
           <ul class="text-xs text-gray-500 space-y-1 mt-1">
             <li>• <strong>تعديل اسم الهيدر</strong> — اضغط على العنوان أو الوصف في الأعلى مباشرةً لتعديله ✏️</li>
             <li>• <strong>البحث باسم المشروع</strong> — اكتب اسم المستند (مثال: 3-The-Vision) في خانة البحث وهيظهرلك بس</li>
+            <li>• <strong>تغيير اسم المستند (ID)</strong> — اضغط 🏷️ البنفسجي عشان تغير الـ Document ID بالكامل</li>
             <li>• <strong>سحب وافلات</strong> — امسك ⠿ واسحب عشان ترتّب</li>
             <li>• <strong>تعديل بالألوان</strong> — اضغط ✏️ وهتحصل على محرر نصوص كامل</li>
             <li>• <strong>نسخ</strong> — اضغط 📋 عشان تنسخ محتوى مستند</li>
@@ -435,6 +436,46 @@
       <pre id="json-content" class="bg-gray-50 rounded-lg p-4 text-xs font-mono overflow-auto flex-1 whitespace-pre-wrap break-all"></pre>
       <div class="flex justify-end mt-4">
         <button onclick="hideJsonDialog()" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Dialog -->
+  <div id="rename-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6" dir="rtl">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-gray-900">تغيير اسم المستند</h3>
+          <p class="text-xs text-gray-500">Document ID — سيتم نسخ الداتا وحذف المستند القديم</p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-medium text-gray-500 block mb-1">الاسم الحالي</label>
+          <div id="rename-old-id" class="px-3 py-2 bg-gray-100 rounded-lg text-sm font-mono text-gray-500 border" dir="ltr"></div>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-gray-700 block mb-1">الاسم الجديد</label>
+          <input id="rename-new-id" type="text" dir="ltr" placeholder="مثال: 5-New-Name"
+            class="w-full px-3 py-2.5 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500">
+        </div>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700 flex gap-2">
+          <span class="flex-shrink-0">⚠️</span>
+          <span>Firestore لا يدعم تغيير الـ ID مباشرةً. سيتم إنشاء مستند جديد بنفس الداتا ثم حذف القديم.</span>
+        </div>
+      </div>
+
+      <div class="flex gap-2 mt-5 justify-end">
+        <button onclick="hideRenameDialog()" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">الغاء</button>
+        <button onclick="renameDoc()" id="rename-confirm-btn"
+          class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 flex items-center gap-1.5 font-medium">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          تأكيد التغيير
+        </button>
       </div>
     </div>
   </div>
@@ -825,8 +866,11 @@
                 ${contentDisplay}
               </div>
               <div class="actions flex-shrink-0 flex gap-1">
-                <button onclick="startEdit('${doc.id}')" class="p-1.5 text-gray-400 hover:text-orange-600 rounded hover:bg-orange-50" title="تعديل">
+                <button onclick="startEdit('${doc.id}')" class="p-1.5 text-gray-400 hover:text-orange-600 rounded hover:bg-orange-50" title="تعديل المحتوى">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button onclick="showRenameDialog('${doc.id}')" class="p-1.5 text-gray-400 hover:text-purple-600 rounded hover:bg-purple-50" title="تغيير اسم المستند (Document ID)">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
                 </button>
                 <button onclick="copyContent('${doc.id}')" class="p-1.5 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100" title="نسخ">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
@@ -983,6 +1027,74 @@
       }
     }
 
+    // ── Rename Document ID ──
+    let renamingId = null;
+
+    function showRenameDialog(id) {
+      renamingId = id;
+      document.getElementById('rename-old-id').textContent = id;
+      document.getElementById('rename-new-id').value = id;
+      document.getElementById('rename-dialog').classList.remove('hidden');
+      setTimeout(() => {
+        const input = document.getElementById('rename-new-id');
+        input.focus();
+        input.select();
+      }, 100);
+    }
+
+    function hideRenameDialog() {
+      renamingId = null;
+      document.getElementById('rename-dialog').classList.add('hidden');
+      document.getElementById('rename-new-id').value = '';
+    }
+
+    async function renameDoc() {
+      const newId = document.getElementById('rename-new-id').value.trim();
+      if (!newId) { showToast('اكتب الاسم الجديد', 'error'); return; }
+      if (newId === renamingId) { showToast('الاسم نفسه، غيّر اسماً مختلفاً', 'info'); return; }
+
+      const colName = document.getElementById('collection-input').value.trim();
+
+      // Check if new ID already exists
+      try {
+        const existing = await db.collection(colName).doc(newId).get();
+        if (existing.exists) {
+          showToast('يوجد مستند بهذا الاسم مسبقاً ❌', 'error');
+          return;
+        }
+      } catch (e) { /* ignore check errors */ }
+
+      // Disable button while working
+      const btn = document.getElementById('rename-confirm-btn');
+      btn.disabled = true;
+      btn.textContent = 'جاري التغيير...';
+
+      try {
+        // Get full data of old doc
+        const oldRef = db.collection(colName).doc(renamingId);
+        const oldSnap = await oldRef.get();
+        if (!oldSnap.exists) { showToast('المستند القديم غير موجود ❌', 'error'); return; }
+
+        const data = oldSnap.data();
+
+        // Write to new doc
+        await db.collection(colName).doc(newId).set(data);
+
+        // Delete old doc
+        await oldRef.delete();
+
+        hideRenameDialog();
+        showToast(`✅ تم تغيير الاسم إلى ${newId}`);
+        loadDocuments();
+      } catch (error) {
+        console.error(error);
+        showToast('فشل في تغيير الاسم ❌', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> تأكيد التغيير`;
+      }
+    }
+
     // ── Copy ──
     function copyContent(id) {
       const doc = allDocs.find(d => d.id === id);
@@ -1050,6 +1162,8 @@
     // ── Close dialogs on backdrop click ──
     document.getElementById('add-dialog').addEventListener('click', function(e) { if (e.target === this) hideAddDialog(); });
     document.getElementById('json-dialog').addEventListener('click', function(e) { if (e.target === this) hideJsonDialog(); });
+    document.getElementById('rename-dialog').addEventListener('click', function(e) { if (e.target === this) hideRenameDialog(); });
+    document.getElementById('rename-new-id').addEventListener('keydown', function(e) { if (e.key === 'Enter') renameDoc(); if (e.key === 'Escape') hideRenameDialog(); });
     document.getElementById('collection-input').addEventListener('keydown', function(e) { if (e.key === 'Enter') loadDocuments(); });
   </script>
 </body>
